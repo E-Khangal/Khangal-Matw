@@ -177,6 +177,25 @@ export const accessRequestService = {
 
     const target = requests[index];
     const userEmail = target.email || target.phoneNumber || '';
+
+    // If it's a topic unlock request, unlock that topic
+    if (target.requestType === 'topic_unlock' && target.requestedTopicId) {
+      // Set topic to visible for everyone
+      try {
+        const vKey = 'mongolian_math_visibility_settings_v2';
+        const vRaw = localStorage.getItem(vKey);
+        if (vRaw) {
+          const vData = JSON.parse(vRaw);
+          vData.lockedTopicIds = (vData.lockedTopicIds || []).filter((id: string) => id !== target.requestedTopicId);
+          vData.hiddenTopicIds = (vData.hiddenTopicIds || []).filter((id: string) => id !== target.requestedTopicId);
+          localStorage.setItem(vKey, JSON.stringify(vData));
+          window.dispatchEvent(new CustomEvent('visibility-settings-updated'));
+        }
+      } catch (err) {
+        console.error('Failed to unlock topic:', err);
+      }
+    }
+
     // Generate secure 6-character password or use provided
     const password =
       customPassword?.trim() ||
@@ -552,5 +571,58 @@ export const accessRequestService = {
       this.saveApprovedAccounts(accounts);
       return { success: true, message: 'Нууц үг амжилттай солигдлоо.' };
     }
+  },
+
+  /**
+   * Submit a request for unlocking a specific topic
+   */
+  submitTopicUnlockRequest(data: {
+    user: AuthUser;
+    topicId: string;
+    topicTitle: string;
+    note?: string;
+  }): { success: boolean; message: string; request?: AccessRequest } {
+    const cleanEmail = (data.user.email || data.user.phoneNumber || '').trim().toLowerCase();
+    const cleanName = (data.user.name || data.user.username || 'Сурагч').trim();
+    const currentRequests = this.getRequests();
+
+    // Check if there's already a pending request for this topic
+    const existing = currentRequests.find(
+      (r) =>
+        r.email.toLowerCase() === cleanEmail &&
+        r.requestedTopicId === data.topicId &&
+        r.status === 'pending'
+    );
+
+    if (existing) {
+      return {
+        success: false,
+        message: 'Та энэ хичээлийг нээлгэх хүсэлтээ аль хэдийн багшид илгээсэн байна. Багшийн зөвшөөрлийг хүлээнэ үү.',
+      };
+    }
+
+    const now = Date.now();
+    const newRequest: AccessRequest = {
+      id: 'req-topic-' + now + '-' + Math.random().toString(36).substring(2, 7),
+      fullName: cleanName,
+      email: cleanEmail,
+      phoneNumber: data.user.phoneNumber || '',
+      note: data.note || `«${data.topicTitle}» хичээлийг нээлгэх хүсэлт`,
+      requestedAt: now,
+      expiresAt: now + EXPIRATION_DURATION_MS,
+      status: 'pending',
+      requestedTopicId: data.topicId,
+      requestedTopicTitle: data.topicTitle,
+      requestType: 'topic_unlock',
+      emailSent: false,
+    };
+
+    this.saveRequests([newRequest, ...currentRequests]);
+
+    return {
+      success: true,
+      message: `«${data.topicTitle}» сэдвийг нээлгэх хүсэлт багшид амжилттай илгээгдлээ. Багш зөвшөөрсний дараа хичээлийн агуулга нээгдэнэ.`,
+      request: newRequest,
+    };
   },
 };

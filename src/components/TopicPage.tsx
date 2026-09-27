@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { TopicPackage, PrintSectionsSelection, PrintOptions } from '../types';
+import { TopicPackage, PrintSectionsSelection, PrintOptions, TheoryRule, WorkedExample, PracticeProblem } from '../types';
 import { TheorySection } from './TheorySection';
 import { WorkedExamplesSection } from './WorkedExamplesSection';
 import { PracticeSection } from './PracticeSection';
-import { TestSection } from './TestSection';
-import { AnswerSection } from './AnswerSection';
 import { PrintControlPanel } from './PrintControlPanel';
-import { UserVisibilityPanel } from './UserVisibilityPanel';
-import { visibilityService, TopicSectionVisibility } from '../services/visibilityService';
+import { ItemEditorModal, ItemEditorType } from './ItemEditorModal';
+import { visibilityService, TopicSectionVisibility, TopicAccessMode } from '../services/visibilityService';
+import { accessRequestService } from '../services/accessRequestService';
+import { AuthUser } from '../types';
 import {
   Printer,
   ChevronRight,
@@ -16,22 +16,34 @@ import {
   Square,
   Lock,
   BookOpen,
+  Pencil,
+  Send,
+  CheckCircle2,
+  AlertCircle,
+  Award,
+  Play,
+  ArrowRight,
 } from 'lucide-react';
 
 interface TopicPageProps {
   topic: TopicPackage;
   isAdmin: boolean;
+  currentUser?: AuthUser | null;
+  onUpdateTopic?: (updatedTopic: TopicPackage) => void;
   onOpenAdmin?: () => void;
   onPreviewAsUser?: () => void;
+  onOpenExamsHub?: (topicId?: string) => void;
 }
 
 export const TopicPage: React.FC<TopicPageProps> = ({
   topic,
   isAdmin,
+  currentUser,
+  onUpdateTopic,
   onOpenAdmin,
-  onPreviewAsUser,
+  onOpenExamsHub,
 }) => {
-  // Default selection per requirements for Admin printing:
+  // Selection for core lesson sections: Theory, Examples, Practice
   const [selection, setSelection] = useState<PrintSectionsSelection>({
     theory: true,
     examples: true,
@@ -49,18 +61,31 @@ export const TopicPage: React.FC<TopicPageProps> = ({
     twoColumnPractice: false,
   });
 
+  // In-page editing state (for Theory, Examples, Practice)
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const [activeEditorTarget, setActiveEditorTarget] = useState<ItemEditorType | null>(null);
+
   // User visibility config for this topic (read from storage)
   const [userVisibility, setUserVisibility] = useState<TopicSectionVisibility>(() =>
     visibilityService.getTopicVisibility(topic.id)
   );
-  const [isTopicHiddenFromUsers, setIsTopicHiddenFromUsers] = useState<boolean>(() =>
-    visibilityService.isTopicHidden(topic.id)
+  const [accessMode, setAccessMode] = useState<TopicAccessMode>(() =>
+    visibilityService.getTopicAccessMode(topic.id)
   );
+  const [requestStatus, setRequestStatus] = useState<{
+    submitting: boolean;
+    sent: boolean;
+    message: string;
+  }>({
+    submitting: false,
+    sent: false,
+    message: '',
+  });
 
   useEffect(() => {
     const handleUpdate = () => {
       setUserVisibility(visibilityService.getTopicVisibility(topic.id));
-      setIsTopicHiddenFromUsers(visibilityService.isTopicHidden(topic.id));
+      setAccessMode(visibilityService.getTopicAccessMode(topic.id));
     };
 
     handleUpdate();
@@ -70,39 +95,42 @@ export const TopicPage: React.FC<TopicPageProps> = ({
     };
   }, [topic.id]);
 
-  // Determine if the first printed section is a test or theory
-  const isOnlyTest1 = selection.test1 && !selection.theory && !selection.examples && !selection.practice;
-  const isOnlyTest2 = selection.test2 && !selection.theory && !selection.examples && !selection.practice && !selection.test1;
-  const isOnlyTest3 = selection.test3 && !selection.theory && !selection.examples && !selection.practice && !selection.test1 && !selection.test2;
-  const isOnlyAnswers = selection.answers && !selection.theory && !selection.examples && !selection.practice && !selection.test1 && !selection.test2 && !selection.test3;
+  const handleRequestUnlock = () => {
+    if (!currentUser) return;
+    setRequestStatus({ submitting: true, sent: false, message: '' });
+
+    const result = accessRequestService.submitTopicUnlockRequest({
+      user: currentUser,
+      topicId: topic.id,
+      topicTitle: topic.title,
+    });
+
+    setRequestStatus({
+      submitting: false,
+      sent: result.success,
+      message: result.message,
+    });
+  };
 
   const anyAdminSectionSelected =
     selection.theory ||
     selection.examples ||
-    selection.practice ||
-    selection.test1 ||
-    selection.test2 ||
-    selection.test3 ||
-    selection.answers;
+    selection.practice;
 
   const anyUserSectionVisible =
     userVisibility.theory ||
     userVisibility.examples ||
-    userVisibility.practice ||
-    userVisibility.test1 ||
-    userVisibility.test2 ||
-    userVisibility.test3 ||
-    userVisibility.answers;
+    userVisibility.practice;
 
   const selectAll = () => {
     setSelection({
       theory: true,
       examples: true,
       practice: true,
-      test1: true,
-      test2: true,
-      test3: true,
-      answers: true,
+      test1: false,
+      test2: false,
+      test3: false,
+      answers: false,
     });
   };
 
@@ -118,6 +146,160 @@ export const TopicPage: React.FC<TopicPageProps> = ({
     });
   };
 
+  // Helper to commit topic changes to parent / storage
+  const commitTopicChange = (updated: TopicPackage) => {
+    if (onUpdateTopic) {
+      onUpdateTopic(updated);
+    }
+  };
+
+  /* ================= THEORY HANDLERS ================= */
+  const handleOpenAddTheory = () => {
+    setActiveEditorTarget({
+      type: 'theory',
+      item: {
+        id: `th-${Date.now()}`,
+        title: 'Шинэ онол, тодорхойлолт',
+        ruleText: 'Онолын тодорхойлолт энд бичнэ. Жишээ: $a^2 + b^2 = c^2$',
+        formula: '',
+        badge: 'Дүрэм',
+      },
+      isNew: true,
+    });
+  };
+
+  const handleOpenEditTheory = (rule: TheoryRule) => {
+    setActiveEditorTarget({
+      type: 'theory',
+      item: rule,
+      isNew: false,
+    });
+  };
+
+  const handleSaveTheory = (rule: TheoryRule, isNew?: boolean) => {
+    const currentList = topic.theory || [];
+    let updatedList: TheoryRule[];
+    if (isNew) {
+      updatedList = [...currentList, rule];
+    } else {
+      updatedList = currentList.map((item) => (item.id === rule.id ? rule : item));
+    }
+    commitTopicChange({ ...topic, theory: updatedList });
+  };
+
+  const handleDeleteTheory = (ruleId: string) => {
+    const updatedList = (topic.theory || []).filter((item) => item.id !== ruleId);
+    commitTopicChange({ ...topic, theory: updatedList });
+  };
+
+  /* ================= EXAMPLES HANDLERS ================= */
+  const handleOpenAddExample = () => {
+    const nextNum = (topic.examples?.length || 0) + 1;
+    setActiveEditorTarget({
+      type: 'example',
+      item: {
+        id: `ex-${Date.now()}`,
+        number: nextNum,
+        title: `Жишээ ${nextNum}`,
+        problem: 'Бодлогын нөхцөл энд бичнэ. Жишээ: $2x + 6 = 10$',
+        solutionSteps: ['Алхам 1: Тэгшитгэлийн хоёр талыг хялбарчилна.', 'Алхам 2: $2x = 4 \\implies x = 2$'],
+        answer: '$x = 2$',
+      },
+      isNew: true,
+    });
+  };
+
+  const handleOpenEditExample = (example: WorkedExample) => {
+    setActiveEditorTarget({
+      type: 'example',
+      item: example,
+      isNew: false,
+    });
+  };
+
+  const handleSaveExample = (example: WorkedExample, isNew?: boolean) => {
+    const currentList = topic.examples || [];
+    let updatedList: WorkedExample[];
+    if (isNew) {
+      updatedList = [...currentList, example];
+    } else {
+      updatedList = currentList.map((item) => (item.id === example.id ? example : item));
+    }
+    // Re-number
+    updatedList.forEach((item, idx) => {
+      item.number = idx + 1;
+    });
+    commitTopicChange({ ...topic, examples: updatedList });
+  };
+
+  const handleDeleteExample = (exampleId: string) => {
+    const updatedList = (topic.examples || []).filter((item) => item.id !== exampleId);
+    updatedList.forEach((item, idx) => {
+      item.number = idx + 1;
+    });
+    commitTopicChange({ ...topic, examples: updatedList });
+  };
+
+  /* ================= PRACTICE HANDLERS ================= */
+  const handleOpenAddPractice = () => {
+    const nextNum = (topic.practice?.length || 0) + 1;
+    setActiveEditorTarget({
+      type: 'practice',
+      item: {
+        id: `pr-${Date.now()}`,
+        number: nextNum,
+        question: 'Дасгал бодлогын нөхцөл энд бичнэ. Жишээ: $3(x - 1) = 9$',
+        hint: 'Хаалтыг задалж бодоорой.',
+        difficulty: 'medium',
+        answer: '$x = 4$',
+        solution: '$3x - 3 = 9 \\implies 3x = 12 \\implies x = 4$',
+        workSpaceLines: 4,
+      },
+      isNew: true,
+    });
+  };
+
+  const handleOpenEditPractice = (practice: PracticeProblem) => {
+    setActiveEditorTarget({
+      type: 'practice',
+      item: practice,
+      isNew: false,
+    });
+  };
+
+  const handleSavePractice = (practice: PracticeProblem, isNew?: boolean) => {
+    const currentList = topic.practice || [];
+    let updatedList: PracticeProblem[];
+    if (isNew) {
+      updatedList = [...currentList, practice];
+    } else {
+      updatedList = currentList.map((item) => (item.id === practice.id ? practice : item));
+    }
+    // Re-number
+    updatedList.forEach((item, idx) => {
+      item.number = idx + 1;
+    });
+    commitTopicChange({ ...topic, practice: updatedList });
+  };
+
+  const handleDeletePractice = (practiceId: string) => {
+    const updatedList = (topic.practice || []).filter((item) => item.id !== practiceId);
+    updatedList.forEach((item, idx) => {
+      item.number = idx + 1;
+    });
+    commitTopicChange({ ...topic, practice: updatedList });
+  };
+
+  const handleDeleteItem = (target: ItemEditorType) => {
+    if (target.type === 'theory') {
+      handleDeleteTheory(target.item.id);
+    } else if (target.type === 'example') {
+      handleDeleteExample(target.item.id);
+    } else if (target.type === 'practice') {
+      handleDeletePractice(target.item.id);
+    }
+  };
+
   return (
     <div className="w-full">
       {/* Screen Breadcrumb & Title Bar */}
@@ -131,39 +313,69 @@ export const TopicPage: React.FC<TopicPageProps> = ({
             <span className="text-amber-800 font-bold">{topic.title}</span>
           </nav>
 
-          {/* Admin-only quick actions */}
-          {isAdmin && (
-            <div className="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick={selectAll}
-                className="px-2.5 py-1 text-xs font-semibold text-stone-700 hover:text-stone-900 bg-white border border-stone-300 rounded-md hover:bg-stone-50 flex items-center space-x-1.5 transition-colors cursor-pointer"
-              >
-                <CheckSquare className="w-3.5 h-3.5 text-stone-500" />
-                <span>Бүгдийг сонгох</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={clearAll}
-                className="px-2.5 py-1 text-xs font-semibold text-stone-700 hover:text-stone-900 bg-white border border-stone-300 rounded-md hover:bg-stone-50 flex items-center space-x-1.5 transition-colors cursor-pointer"
-              >
-                <Square className="w-3.5 h-3.5 text-stone-500" />
-                <span>Сонголтыг арилгах</span>
-              </button>
-
-              {onOpenAdmin && (
+          {/* Quick actions bar */}
+          <div className="flex items-center flex-wrap gap-2">
+            {isAdmin && (
+              <>
+                {/* Live In-Page Content Editing Toggle */}
                 <button
                   type="button"
-                  onClick={onOpenAdmin}
+                  onClick={() => setIsEditMode(!isEditMode)}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-md flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs ${
+                    isEditMode
+                      ? 'bg-amber-500 text-stone-950 border border-amber-600 ring-2 ring-amber-400/40'
+                      : 'bg-white hover:bg-stone-50 text-stone-700 border border-stone-300'
+                  }`}
+                  title="Хуудсан дээрх онол, жишээ, дасгалыг шууд засах горим"
+                >
+                  <Pencil className="w-3.5 h-3.5 text-stone-900" />
+                  <span>{isEditMode ? 'Засах горим: Идэвхтэй' : 'Шууд засах горим'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={selectAll}
                   className="px-2.5 py-1 text-xs font-semibold text-stone-700 hover:text-stone-900 bg-white border border-stone-300 rounded-md hover:bg-stone-50 flex items-center space-x-1.5 transition-colors cursor-pointer"
                 >
-                  <Edit3 className="w-3.5 h-3.5 text-stone-500" />
-                  <span>Сэдэв засах</span>
+                  <CheckSquare className="w-3.5 h-3.5 text-stone-500" />
+                  <span>Бүгдийг сонгох</span>
                 </button>
-              )}
-            </div>
-          )}
+
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="px-2.5 py-1 text-xs font-semibold text-stone-700 hover:text-stone-900 bg-white border border-stone-300 rounded-md hover:bg-stone-50 flex items-center space-x-1.5 transition-colors cursor-pointer"
+                >
+                  <Square className="w-3.5 h-3.5 text-stone-500" />
+                  <span>Сонголтыг арилгах</span>
+                </button>
+
+                {onOpenAdmin && (
+                  <button
+                    type="button"
+                    onClick={onOpenAdmin}
+                    className="px-2.5 py-1 text-xs font-semibold text-stone-700 hover:text-stone-900 bg-white border border-stone-300 rounded-md hover:bg-stone-50 flex items-center space-x-1.5 transition-colors cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-stone-500" />
+                    <span>Сэдэв бүрэн удирдах</span>
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* Jump to Exams Center for this topic */}
+            {onOpenExamsHub && (
+              <button
+                type="button"
+                onClick={() => onOpenExamsHub(topic.id)}
+                className="px-2.5 py-1 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer"
+                title="Энэ сэдвийн 3 түвшний шалгалтын төв рүү шилжих"
+              >
+                <Award className="w-3.5 h-3.5 text-amber-700" />
+                <span>3 шалгалт өгөх</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-baseline justify-between">
@@ -179,28 +391,18 @@ export const TopicPage: React.FC<TopicPageProps> = ({
         )}
       </div>
 
-      {/* ADMIN CONTROLS: Visibility management + Print Control Panel */}
+      {/* ADMIN CONTROLS: Print Selection Control Panel (Admin only) */}
       {isAdmin ? (
-        <>
-          {/* User Visibility Panel for Admin to check what parts users see */}
-          <UserVisibilityPanel
-            topicId={topic.id}
-            topicTitle={topic.title}
-            onPreviewAsUser={onPreviewAsUser || (() => {})}
-          />
-
-          {/* Print Selection Control Panel (Admin only) */}
-          <PrintControlPanel
-            selection={selection}
-            onChangeSelection={setSelection}
-            options={options}
-            onChangeOptions={setOptions}
-          />
-        </>
+        <PrintControlPanel
+          selection={selection}
+          onChangeSelection={setSelection}
+          options={options}
+          onChangeOptions={setOptions}
+        />
       ) : null}
 
       {/* MAIN DOCUMENT CANVAS */}
-      {!isAdmin && isTopicHiddenFromUsers ? (
+      {!isAdmin && accessMode === 'hidden' ? (
         <div className="py-20 text-center bg-white rounded-2xl border border-stone-200 p-8 shadow-xs">
           <div className="w-14 h-14 bg-stone-100 rounded-2xl flex items-center justify-center mx-auto mb-3.5 text-stone-400">
             <Lock className="w-7 h-7" />
@@ -209,8 +411,61 @@ export const TopicPage: React.FC<TopicPageProps> = ({
             Энэ сэдэв одоогоор хэрэглэгчдэд нээгдээгүй байна
           </h2>
           <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
-            Админ энэхүү хичээлийн агуулгыг хэрэглэгчдэд нээсний дараа энд харагдах болно.
+            Багш энэхүү хичээлийн агуулгыг хэрэглэгчдэд нээсний дараа энд харагдах болно.
           </p>
+        </div>
+      ) : !isAdmin && accessMode === 'locked' ? (
+        <div className="py-16 px-6 max-w-xl mx-auto text-center bg-white rounded-2xl border-2 border-amber-300 shadow-sm my-6 space-y-4">
+          <div className="w-16 h-16 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center mx-auto shadow-2xs ring-4 ring-amber-50">
+            <Lock className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+              Түгжигдсэн хичээл
+            </span>
+            <h2 className="text-lg md:text-xl font-black text-stone-900 pt-2">
+              «{topic.title}» хичээл түгжээтэй байна
+            </h2>
+            <p className="text-xs md:text-sm text-stone-600 max-w-md mx-auto leading-relaxed pt-1">
+              Энэ хичээлийн агуулгыг үзэхийн тулд <strong>багшаар уг хичээлийг нээлгэнэ үү</strong>. Доорх товчийг дарж багшид хичээл нээлгэх хүсэлтээ илгээнэ үү.
+            </p>
+          </div>
+
+          {/* Feedback or Request Button */}
+          {requestStatus.message ? (
+            <div
+              className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 ${
+                requestStatus.sent
+                  ? 'bg-emerald-50 text-emerald-900 border border-emerald-300'
+                  : 'bg-amber-50 text-amber-900 border border-amber-300'
+              }`}
+            >
+              {requestStatus.sent ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              )}
+              <span>{requestStatus.message}</span>
+            </div>
+          ) : (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleRequestUnlock}
+                disabled={requestStatus.submitting}
+                className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs md:text-sm rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center space-x-2 mx-auto cursor-pointer"
+              >
+                <Send className="w-4 h-4" />
+                <span>
+                  {requestStatus.submitting ? 'Илгээж байна...' : 'Багшаар уг хичээлийг нээлгэх хүсэлт илгээх'}
+                </span>
+              </button>
+              <p className="text-[11px] text-stone-400 mt-2">
+                Багш хүсэлтийг зөвшөөрснөөр таны дэлгэцэнд хичээлийн онол, дасгалууд шууд нээгдэнэ.
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <article className="print-container bg-white rounded-xl border border-stone-200 p-6 md:p-10 shadow-xs print:shadow-none print:border-none print:p-0">
@@ -222,7 +477,7 @@ export const TopicPage: React.FC<TopicPageProps> = ({
                 Хэвлэх эсвэл харах хэсгээ сонгоогүй байна.
               </p>
               <p className="text-xs text-stone-400 mt-1">
-                Дээрх сонголтоос онол, жишээ, дасгал эсвэл сорилыг чагтална уу.
+                Дээрх сонголтоос онол, жишээ, эсвэл дасгалыг чагтална уу.
               </p>
             </div>
           )}
@@ -232,10 +487,10 @@ export const TopicPage: React.FC<TopicPageProps> = ({
             <div className="py-16 text-center text-stone-400 border-2 border-dashed border-stone-200 rounded-xl my-4">
               <BookOpen className="w-10 h-10 mx-auto text-stone-300 mb-2" />
               <p className="font-semibold text-sm text-stone-700">
-                Энэ хичээлийн хэсгүүдийг багш/админ хараахан нийтлээгүй байна.
+                Энэ хичээлийн агуулгыг багш/админ хараахан нийтлээгүй байна.
               </p>
               <p className="text-xs text-stone-400 mt-1">
-                Админ уг сэдвийн онол, дасгал, эсвэл сорилын аль нэгийг нээсний дараа энд харагдана.
+                Багш уг сэдвийн онол, жишээ эсвэл дасгалыг нээсний дараа энд харагдана.
               </p>
             </div>
           )}
@@ -245,12 +500,22 @@ export const TopicPage: React.FC<TopicPageProps> = ({
             <TheorySection
               theory={topic.theory}
               prerequisiteNotice={topic.prerequisiteNotice}
+              isEditable={isAdmin && isEditMode}
+              onAddRule={handleOpenAddTheory}
+              onEditRule={handleOpenEditTheory}
+              onDeleteRule={handleDeleteTheory}
             />
           )}
 
           {/* 2. Worked Examples */}
           {((isAdmin && selection.examples) || (!isAdmin && userVisibility.examples)) && (
-            <WorkedExamplesSection examples={topic.examples} />
+            <WorkedExamplesSection
+              examples={topic.examples}
+              isEditable={isAdmin && isEditMode}
+              onAddExample={handleOpenAddExample}
+              onEditExample={handleOpenEditExample}
+              onDeleteExample={handleDeleteExample}
+            />
           )}
 
           {/* 3. Practice Exercises */}
@@ -259,57 +524,53 @@ export const TopicPage: React.FC<TopicPageProps> = ({
               practice={topic.practice}
               includeWorkSpace={isAdmin ? options.includeWorkSpace : false}
               teacherVersion={isAdmin ? options.teacherVersion : false}
+              isEditable={isAdmin && isEditMode}
+              onAddPractice={handleOpenAddPractice}
+              onEditPractice={handleOpenEditPractice}
+              onDeletePractice={handleDeletePractice}
             />
           )}
 
-          {/* 4. Test 1 */}
-          {((isAdmin && selection.test1) || (!isAdmin && userVisibility.test1)) && topic.test1 && (
-            <TestSection
-              test={topic.test1}
-              grade={topic.grade}
-              topicTitle={topic.title}
-              category={topic.category}
-              isFirstPrintedSection={isAdmin ? isOnlyTest1 : false}
-              includeWorkSpace={isAdmin ? options.includeWorkSpace : false}
-              teacherVersion={isAdmin ? options.teacherVersion : false}
-            />
-          )}
+          {/* Link to 3-tier Exams Hub for this topic (Neat banner) */}
+          {onOpenExamsHub && (
+            <div className="mt-10 p-5 bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-white rounded-2xl border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm no-print">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                  <Award className="w-4 h-4" />
+                  <span>Шалгалтын төв • {topic.grade}-р анги</span>
+                </div>
+                <h3 className="text-sm md:text-base font-black text-white">
+                  «{topic.title}» - Анхан, Үндсэн, Ахисан 3 шалгалт
+                </h3>
+                <p className="text-xs text-stone-400 max-w-xl leading-relaxed">
+                  Энэ сэдвээр 3 түвшний шалгалтыг цаг тоолууртай ажиллаж, оноо дүнгээ харах, алдаагаа шалгах болон бодолттой нь танилцах боломжтой.
+                </p>
+              </div>
 
-          {/* 5. Test 2 */}
-          {((isAdmin && selection.test2) || (!isAdmin && userVisibility.test2)) && topic.test2 && (
-            <TestSection
-              test={topic.test2}
-              grade={topic.grade}
-              topicTitle={topic.title}
-              category={topic.category}
-              isFirstPrintedSection={isAdmin ? isOnlyTest2 : false}
-              includeWorkSpace={isAdmin ? options.includeWorkSpace : false}
-              teacherVersion={isAdmin ? options.teacherVersion : false}
-            />
-          )}
-
-          {/* 6. Test 3 */}
-          {((isAdmin && selection.test3) || (!isAdmin && userVisibility.test3)) && topic.test3 && (
-            <TestSection
-              test={topic.test3}
-              grade={topic.grade}
-              topicTitle={topic.title}
-              category={topic.category}
-              isFirstPrintedSection={isAdmin ? isOnlyTest3 : false}
-              includeWorkSpace={isAdmin ? options.includeWorkSpace : false}
-              teacherVersion={isAdmin ? options.teacherVersion : false}
-            />
-          )}
-
-          {/* 7. Answers */}
-          {((isAdmin && selection.answers) || (!isAdmin && userVisibility.answers)) && (
-            <AnswerSection
-              topic={topic}
-              isFirstPrintedSection={isAdmin ? isOnlyAnswers : false}
-            />
+              <button
+                type="button"
+                onClick={() => onOpenExamsHub(topic.id)}
+                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Шалгалт өгөх</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           )}
         </article>
       )}
+
+      {/* Item Editor Modal with LaTeX live preview (Theory, Examples, Practice) */}
+      <ItemEditorModal
+        isOpen={Boolean(activeEditorTarget)}
+        target={activeEditorTarget}
+        onClose={() => setActiveEditorTarget(null)}
+        onSaveTheory={handleSaveTheory}
+        onSaveExample={handleSaveExample}
+        onSavePractice={handleSavePractice}
+        onDelete={handleDeleteItem}
+      />
     </div>
   );
 };

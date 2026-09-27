@@ -37,6 +37,7 @@ export interface TestQuestion {
   id: string;
   number: number;
   question: string;
+  options?: string[];
   points: number;
   answer: string;
   solution?: string;
@@ -56,6 +57,7 @@ export interface TestPackage {
 export interface TopicPackage {
   id: string;
   grade: GradeNumber;
+  visibleGrades?: GradeNumber[]; // Support displaying in multiple grades (6, 7, 8, etc.)
   category: string;
   title: string;
   code?: string;
@@ -138,6 +140,9 @@ export interface AccessRequest {
   smsSent?: boolean;
   smsSentAt?: number;
   smsMessage?: string;
+  requestedTopicId?: string;
+  requestedTopicTitle?: string;
+  requestType?: 'full_access' | 'topic_unlock';
 }
 
 export interface ApprovedAccount {

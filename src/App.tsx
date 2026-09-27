@@ -11,6 +11,7 @@ import { AccessRequestsModal } from './components/AccessRequestsModal';
 import { LoginView } from './components/LoginView';
 import { ScreenProtection } from './components/ScreenProtection';
 import { SettingsModal } from './components/SettingsModal';
+import { ExamsHub } from './components/ExamsHub';
 import { AuthUser } from './types';
 import { getStoredAuth, clearStoredAuth } from './utils/deviceManager';
 import { accessRequestService } from './services/accessRequestService';
@@ -20,7 +21,6 @@ import {
   Database,
   Settings,
   Sparkles,
-  BookOpen,
   ChevronDown,
   FileDown,
   LogOut,
@@ -32,6 +32,7 @@ import {
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getStoredAuth());
   const [previewAsUser, setPreviewAsUser] = useState<boolean>(false);
+  const [activeView, setActiveView] = useState<'topics' | 'exams'>('topics');
   const [topics, setTopics] = useState<TopicPackage[]>([]);
   const [selectedGrade, setSelectedGrade] = useState<GradeNumber>(6);
   const [selectedTopicId, setSelectedTopicId] = useState<string>('g6-divisibility');
@@ -117,7 +118,17 @@ export default function App() {
     if (existing) return existing;
 
     // Search in catalog to generate a starter package
-    const catItem = GRADE_TOPICS_CATALOG[selectedGrade]?.find((item) => item.id === selectedTopicId);
+    let catItem = GRADE_TOPICS_CATALOG[selectedGrade]?.find((item) => item.id === selectedTopicId);
+    if (!catItem) {
+      // Check other grades catalog in case it was a multi-grade shared topic
+      for (const g of [6, 7, 8, 9, 10, 11, 12] as GradeNumber[]) {
+        const found = GRADE_TOPICS_CATALOG[g]?.find((item) => item.id === selectedTopicId);
+        if (found) {
+          catItem = found;
+          break;
+        }
+      }
+    }
     if (catItem) {
       return {
         id: catItem.id,
@@ -292,7 +303,7 @@ export default function App() {
 
           {/* Search bar (Зөвхөн админд харагдана) */}
           {currentUser?.role === 'admin' && !previewAsUser ? (
-            <div className="flex-1 max-w-md mx-2">
+            <div className="flex-1 max-w-sm mx-2">
               <SearchBar onSelectResult={handleSearchResultSelect} />
             </div>
           ) : (
@@ -411,7 +422,10 @@ export default function App() {
           selectedGrade={selectedGrade}
           onSelectGrade={setSelectedGrade}
           selectedTopicId={selectedTopicId}
-          onSelectTopic={setSelectedTopicId}
+          onSelectTopic={(topicId) => {
+            setSelectedTopicId(topicId);
+            setActiveView('topics');
+          }}
           onOpenAdmin={() => setAdminModalOpen(true)}
           onOpenQuestionBank={() => setQuestionBankOpen(true)}
           mobileOpen={mobileSidebarOpen}
@@ -422,16 +436,38 @@ export default function App() {
           pendingRequestsCount={pendingRequestsCount}
           onOpenAccessRequests={() => setAccessRequestsModalOpen(true)}
           isAdmin={currentUser?.role === 'admin' && !previewAsUser}
+          activeView={activeView}
+          onSelectView={setActiveView}
         />
 
         {/* Main Content Area */}
         <main className="flex-1 p-4 md:p-6 lg:p-8 min-w-0">
-          {currentTopic.id ? (
+          {activeView === 'exams' ? (
+            <ExamsHub
+              topics={topics}
+              selectedGrade={selectedGrade}
+              onSelectGrade={setSelectedGrade}
+              onSelectTopic={(topicId) => {
+                setSelectedTopicId(topicId);
+                setActiveView('topics');
+              }}
+              isAdmin={currentUser?.role === 'admin' && !previewAsUser}
+            />
+          ) : currentTopic.id ? (
             <TopicPage
               topic={currentTopic}
               isAdmin={currentUser?.role === 'admin' && !previewAsUser}
+              currentUser={currentUser}
+              onUpdateTopic={(updated) => {
+                storageService.saveTopic(updated);
+                refreshTopics();
+              }}
               onOpenAdmin={() => setAdminModalOpen(true)}
               onPreviewAsUser={() => setPreviewAsUser(true)}
+              onOpenExamsHub={(topicId) => {
+                if (topicId) setSelectedTopicId(topicId);
+                setActiveView('exams');
+              }}
             />
           ) : (
             <div className="text-center py-20 text-stone-400">
@@ -457,6 +493,10 @@ export default function App() {
           setTopics((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
         }}
         onRefreshAllTopics={refreshTopics}
+        onOpenQuestionBank={() => {
+          setAdminModalOpen(false);
+          setQuestionBankOpen(true);
+        }}
         onLogout={() => {
           clearStoredAuth();
           setCurrentUser(null);

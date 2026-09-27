@@ -412,9 +412,20 @@ export const AccessRequestsTab: React.FC<AccessRequestsTabProps> = ({ onCountCha
                           <span>Татгалзсан</span>
                         </span>
                       )}
+
+                      {req.requestType === 'topic_unlock' && (
+                        <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-300">
+                          <span>Хичээл нээлгэх хүсэлт</span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="text-[11px] text-stone-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      {req.requestedTopicTitle && (
+                        <span className="font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                          Сэдэв: {req.requestedTopicTitle}
+                        </span>
+                      )}
                       <span>Илгээсэн: {formatDate(req.requestedAt)}</span>
                       {req.phoneNumber && <span>• Утас: {req.phoneNumber}</span>}
                       {req.school && <span>• Сургууль: {req.school}</span>}

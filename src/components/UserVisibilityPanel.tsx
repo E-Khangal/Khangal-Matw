@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, CheckSquare, Square, ShieldCheck, Copy, Check } from 'lucide-react';
-import { visibilityService, TopicSectionVisibility } from '../services/visibilityService';
+import { Eye, EyeOff, Lock, CheckSquare, Square, ShieldCheck, Copy, Check, Unlock } from 'lucide-react';
+import { visibilityService, TopicSectionVisibility, TopicAccessMode } from '../services/visibilityService';
 
 interface UserVisibilityPanelProps {
   topicId: string;
@@ -16,14 +16,14 @@ export const UserVisibilityPanel: React.FC<UserVisibilityPanelProps> = ({
   const [visibility, setVisibility] = useState<TopicSectionVisibility>(() =>
     visibilityService.getTopicVisibility(topicId)
   );
-  const [isHidden, setIsHidden] = useState<boolean>(() =>
-    visibilityService.isTopicHidden(topicId)
+  const [accessMode, setAccessMode] = useState<TopicAccessMode>(() =>
+    visibilityService.getTopicAccessMode(topicId)
   );
   const [copiedMessage, setCopiedMessage] = useState(false);
 
   useEffect(() => {
     setVisibility(visibilityService.getTopicVisibility(topicId));
-    setIsHidden(visibilityService.isTopicHidden(topicId));
+    setAccessMode(visibilityService.getTopicAccessMode(topicId));
   }, [topicId]);
 
   const handleToggle = (key: keyof TopicSectionVisibility) => {
@@ -32,10 +32,9 @@ export const UserVisibilityPanel: React.FC<UserVisibilityPanelProps> = ({
     visibilityService.setTopicVisibility(topicId, updated);
   };
 
-  const handleToggleHidden = () => {
-    const newHidden = !isHidden;
-    setIsHidden(newHidden);
-    visibilityService.setTopicHidden(topicId, newHidden);
+  const handleSetMode = (mode: TopicAccessMode) => {
+    setAccessMode(mode);
+    visibilityService.setTopicAccessMode(topicId, mode);
   };
 
   const handleSelectAll = () => {
@@ -83,7 +82,7 @@ export const UserVisibilityPanel: React.FC<UserVisibilityPanelProps> = ({
   ];
 
   return (
-    <div className="no-print mb-5 bg-gradient-to-r from-amber-500/10 via-amber-50/50 to-stone-50 border-2 border-amber-300/80 rounded-2xl p-4 md:p-5 shadow-xs transition-all">
+    <div className="no-print mb-5 bg-gradient-to-r from-amber-500/10 via-amber-50/50 to-stone-50 border-2 border-amber-300/80 rounded-2xl p-4 md:p-5 shadow-xs transition-all space-y-4">
       {/* Header bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-amber-200/80">
         <div className="flex items-center space-x-2.5">
@@ -100,53 +99,105 @@ export const UserVisibilityPanel: React.FC<UserVisibilityPanelProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-stone-600 mt-0.5">
-              Хүсэлтээр орсон хэрэглэгчдэд «{topicTitle}» хичээлээс юу юу харагдахыг доорх нүднүүдийг чеклэж тохируулна
+              «{topicTitle}» хичээлийг хэрэглэгчдэд нээлттэй, түгжээтэй (хүсэлт гаргах), эсвэл бүрэн нууц байхаар тохируулна
             </p>
           </div>
         </div>
 
-        {/* Right Action buttons */}
-        <div className="flex items-center space-x-2 flex-wrap gap-y-1.5">
+        {/* Right Preview button */}
+        <button
+          type="button"
+          onClick={onPreviewAsUser}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-stone-900 hover:bg-black text-amber-400 flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
+          title="Хэрэглэгчдэд яг одоо яаж харагдаж байгааг шалгах"
+        >
+          <Eye className="w-3.5 h-3.5 text-amber-400" />
+          <span>Хэрэглэгчийн харагдацаар шалгах</span>
+        </button>
+      </div>
+
+      {/* 3-State Access Control for Topic */}
+      <div className="bg-white p-3.5 rounded-xl border border-stone-200 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-stone-700">
+            Сэдвийн хандалтын түвшин:
+          </span>
+          <span className="text-[11px] text-stone-500">
+            (Сурагчдын цэсэнд хэрхэн харагдах)
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {/* 1. Visible */}
           <button
             type="button"
-            onClick={handleToggleHidden}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-colors cursor-pointer border ${
-              isHidden
-                ? 'bg-red-50 text-red-700 border-red-300 hover:bg-red-100'
-                : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+            onClick={() => handleSetMode('visible')}
+            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-start space-x-2.5 ${
+              accessMode === 'visible'
+                ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-950 shadow-2xs font-bold'
+                : 'bg-stone-50 border-stone-200 hover:bg-white text-stone-700'
             }`}
-            title="Энэ сэдвийг хэрэглэгчийн жагсаалтад бүхэлд нь харуулах эсэх"
           >
-            {isHidden ? (
-              <>
-                <EyeOff className="w-3.5 h-3.5 text-red-600" />
-                <span>Сэдэв нуугдсан</span>
-              </>
-            ) : (
-              <>
-                <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Сэдэв нээлттэй</span>
-              </>
-            )}
+            <div className={`p-1.5 rounded-lg shrink-0 ${accessMode === 'visible' ? 'bg-emerald-500 text-white' : 'bg-stone-200 text-stone-600'}`}>
+              <Unlock className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold">1. Нээлттэй</div>
+              <div className="text-[10px] text-stone-500 mt-0.5 leading-snug">
+                Хэрэглэгч шууд үзнэ (доорх чеклэсэн хэсгүүдээр)
+              </div>
+            </div>
           </button>
 
+          {/* 2. Locked with Request */}
           <button
             type="button"
-            onClick={onPreviewAsUser}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-stone-900 hover:bg-black text-amber-400 flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
-            title="Хэрэглэгчдэд яг одоо яаж харагдаж байгааг шалгах"
+            onClick={() => handleSetMode('locked')}
+            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-start space-x-2.5 ${
+              accessMode === 'locked'
+                ? 'bg-amber-50 border-amber-500 ring-2 ring-amber-500/20 text-amber-950 shadow-2xs font-bold'
+                : 'bg-stone-50 border-stone-200 hover:bg-white text-stone-700'
+            }`}
           >
-            <Eye className="w-3.5 h-3.5 text-amber-400" />
-            <span>Хэрэглэгчийн харагдацаар харах</span>
+            <div className={`p-1.5 rounded-lg shrink-0 ${accessMode === 'locked' ? 'bg-amber-500 text-white' : 'bg-stone-200 text-stone-600'}`}>
+              <Lock className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold">2. Түгжээтэй (Нэр нь харагдана)</div>
+              <div className="text-[10px] text-stone-500 mt-0.5 leading-snug">
+                Цэсэнд нэр нь харагдах ба дарвал "Багшаар нээлгэх" хүсэлт илгээнэ
+              </div>
+            </div>
+          </button>
+
+          {/* 3. Hidden */}
+          <button
+            type="button"
+            onClick={() => handleSetMode('hidden')}
+            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-start space-x-2.5 ${
+              accessMode === 'hidden'
+                ? 'bg-rose-50 border-rose-500 ring-2 ring-rose-500/20 text-rose-950 shadow-2xs font-bold'
+                : 'bg-stone-50 border-stone-200 hover:bg-white text-stone-700'
+            }`}
+          >
+            <div className={`p-1.5 rounded-lg shrink-0 ${accessMode === 'hidden' ? 'bg-rose-500 text-white' : 'bg-stone-200 text-stone-600'}`}>
+              <EyeOff className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold">3. Бүрэн нуух</div>
+              <div className="text-[10px] text-stone-500 mt-0.5 leading-snug">
+                Хэрэглэгчийн цэсэнд энэ сэдвийн нэр ч харагдахгүй
+              </div>
+            </div>
           </button>
         </div>
       </div>
 
-      {/* Checkbox Pills Grid */}
-      <div className="pt-3.5">
+      {/* Checkbox Pills Grid (only active if mode is visible) */}
+      <div className={`pt-1 transition-opacity ${accessMode === 'hidden' ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-stone-600">
-            Хичээл дундаас хэрэглэгчдэд нээх хэсгүүд:
+          <span className="text-[11px] font-bold uppercase tracking-wider text-stone-700">
+            Хичээл дундаас нээх тусгай хэсгүүд:
           </span>
           <div className="flex items-center space-x-2 text-[11px]">
             <button
