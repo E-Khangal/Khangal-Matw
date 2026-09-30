@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { GradeNumber, AuthUser } from '../types';
 import { GRADES_LIST, GRADE_TOPICS_CATALOG } from '../data/initialData';
 import { visibilityService, TopicAccessMode } from '../services/visibilityService';
+import { userPermissionsService } from '../services/userPermissionsService';
 import { storageService } from '../services/storageService';
 import {
   GraduationCap,
@@ -10,7 +11,6 @@ import {
   Settings,
   ChevronRight,
   ChevronDown,
-  Database,
   Printer,
   Sparkles,
   Layers,
@@ -32,7 +32,6 @@ interface SidebarProps {
   selectedTopicId: string;
   onSelectTopic: (topicId: string) => void;
   onOpenAdmin: () => void;
-  onOpenQuestionBank?: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
   currentUser: AuthUser;
@@ -51,7 +50,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedTopicId,
   onSelectTopic,
   onOpenAdmin,
-  onOpenQuestionBank,
   mobileOpen,
   onCloseMobile,
   currentUser,
@@ -65,14 +63,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [, setTrigger] = useState(0);
 
-  // Expanded categories state - by default, keep all or selected topic's category expanded
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  // Active single expanded category (нэг нь нээлттэй байх үед бусдыг автоматаар хаана)
+  const [activeExpandedCategory, setActiveExpandedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     const handleUpdate = () => setTrigger((prev) => prev + 1);
     window.addEventListener('visibility-settings-updated', handleUpdate);
+    window.addEventListener('user-permissions-updated', handleUpdate);
     return () => {
       window.removeEventListener('visibility-settings-updated', handleUpdate);
+      window.removeEventListener('user-permissions-updated', handleUpdate);
     };
   }, []);
 
@@ -139,30 +139,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return groups;
   }, [displayedTopics]);
 
-  // Auto-expand category that contains the currently selected topic
+  // Auto-expand only the category that contains the currently selected topic, automatically closing others
   useEffect(() => {
     if (selectedTopicId) {
       const found = displayedTopics.find((t) => t.id === selectedTopicId);
       if (found) {
         const cat = found.category?.trim() || 'Бусад сэдэв';
-        setExpandedCategories((prev) => ({
-          ...prev,
-          [cat]: true,
-        }));
+        setActiveExpandedCategory(cat);
+        return;
       }
+    }
+    if (categoryGroups.length > 0 && !activeExpandedCategory) {
+      setActiveExpandedCategory(categoryGroups[0].category);
     }
   }, [selectedTopicId, displayedTopics]);
 
   const toggleCategory = (category: string) => {
-    setExpandedCategories((prev) => ({
-      ...prev,
-      // Default to true if uninitialized
-      [category]: prev[category] === undefined ? false : !prev[category],
-    }));
+    // When one category is clicked, toggle it, closing all others automatically
+    setActiveExpandedCategory((prev) => (prev === category ? null : category));
   };
 
   const isCategoryExpanded = (category: string) => {
-    return expandedCategories[category] !== false; // expanded by default
+    return activeExpandedCategory === category;
   };
 
   return (
@@ -225,28 +223,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">
               Анги сонгох
             </div>
-            <div className="flex items-center space-x-1.5">
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-300 font-semibold border border-amber-400/20">
-                {isAdmin ? 'Админ' : 'Хэрэглэгч'}
-              </span>
-              <button
-                type="button"
-                onClick={onCloseMobile}
-                className="p-1 rounded-md text-stone-400 hover:text-white hover:bg-stone-800 lg:hidden cursor-pointer"
-                aria-label="Хаах"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              className="p-1 rounded-md text-stone-400 hover:text-white hover:bg-stone-800 lg:hidden cursor-pointer"
+              aria-label="Хаах"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
           <div className="grid grid-cols-4 gap-1.5">
             {GRADES_LIST.map((grade) => {
               const isSelected = grade === selectedGrade;
+              const isAllowed = userPermissionsService.isGradeAllowed(currentUser?.userId, grade, isAdmin);
               return (
                 <button
                   key={grade}
                   type="button"
                   onClick={() => {
+                    if (!isAllowed) {
+                      alert(`${grade}-р ангийн хичээлийг үзэх эрх таны бүртгэлд олгогдоогүй байна. Админд хандаж нээлгэнэ үү.`);
+                      return;
+                    }
                     onSelectGrade(grade);
                     // auto pick first available topic for this grade
                     const topics = GRADE_TOPICS_CATALOG[grade] || [];
@@ -257,13 +255,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       onSelectTopic(firstAvailable.id);
                     }
                   }}
-                  className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all text-center cursor-pointer ${
+                  className={`py-1.5 px-2 rounded-md text-xs font-bold transition-all text-center cursor-pointer relative ${
                     isSelected
                       ? 'bg-amber-500 text-stone-950 shadow-xs scale-102'
-                      : 'bg-stone-800/80 text-stone-300 hover:bg-stone-700 hover:text-white'
+                      : isAllowed
+                      ? 'bg-stone-800/80 text-stone-300 hover:bg-stone-700 hover:text-white'
+                      : 'bg-stone-900/60 text-stone-500 opacity-60 border border-stone-800'
                   }`}
+                  title={!isAllowed ? `${grade}-р анги (Эрх олгогдоогүй)` : undefined}
                 >
-                  {grade}-р анги
+                  <span>{grade}-р анги</span>
+                  {!isAllowed && <Lock className="w-2.5 h-2.5 inline-block ml-0.5 text-stone-500" />}
                 </button>
               );
             })}
@@ -272,11 +274,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Topics List with Hierarchical Accordion (Агуулгын аймаг -> Дэд сэдэв) */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          <div className="flex items-center justify-between px-1 mb-1 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-            <span>{selectedGrade}-р ангийн агуулга</span>
-            <span className="text-[10px] text-stone-500">
-              {displayedTopics.length} сэдэв
-            </span>
+          <div className="px-1 mb-1 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
+            {selectedGrade}-р ангийн агуулга
           </div>
 
           {categoryGroups.length === 0 ? (
@@ -313,10 +312,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span className="text-xs truncate tracking-tight">{group.category}</span>
                       </div>
 
-                      <div className="flex items-center space-x-1.5 shrink-0 ml-1">
-                        <span className="text-[10px] px-1.5 py-0.2 bg-stone-800 text-stone-400 rounded-full font-mono">
-                          {group.topics.length}
-                        </span>
+                      <div className="flex items-center shrink-0 ml-1">
                         {expanded ? (
                           <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
                         ) : (
@@ -424,18 +420,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Admin tools: ONLY shown for admin */}
           {isAdmin && (
             <>
-              <button
-                type="button"
-                onClick={() => {
-                  onOpenAdmin();
-                  onCloseMobile();
-                }}
-                className="w-full py-2 px-3 rounded-lg bg-stone-800/80 hover:bg-stone-700 text-stone-200 text-xs font-semibold transition-colors flex items-center space-x-2.5 cursor-pointer"
-              >
-                <Settings className="w-4 h-4 text-stone-400 shrink-0" />
-                <span className="truncate">Материал засах / нэмэх</span>
-              </button>
-
               {/* Нэвтрэх хүсэлтүүд (Админд зориулсан) */}
               {onOpenAccessRequests && (
                 <button

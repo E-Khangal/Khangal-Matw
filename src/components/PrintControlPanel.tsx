@@ -1,6 +1,5 @@
 import React from 'react';
 import { PrintSectionsSelection, PrintOptions } from '../types';
-import { BookOpen, FileText, CheckSquare } from 'lucide-react';
 
 interface PrintControlPanelProps {
   selection: PrintSectionsSelection;
@@ -39,7 +38,6 @@ export const PrintControlPanel: React.FC<PrintControlPanelProps> = ({
               onChange={() => toggleSection('theory')}
               className="w-4 h-4 rounded text-amber-700 border-stone-300 focus:ring-amber-500 accent-amber-700 cursor-pointer"
             />
-            <BookOpen className="w-3.5 h-3.5 text-stone-500" />
             <span>Онол</span>
           </label>
 
@@ -57,7 +55,6 @@ export const PrintControlPanel: React.FC<PrintControlPanelProps> = ({
               onChange={() => toggleSection('examples')}
               className="w-4 h-4 rounded text-amber-700 border-stone-300 focus:ring-amber-500 accent-amber-700 cursor-pointer"
             />
-            <FileText className="w-3.5 h-3.5 text-stone-500" />
             <span>Жишээ</span>
           </label>
 
@@ -75,14 +72,8 @@ export const PrintControlPanel: React.FC<PrintControlPanelProps> = ({
               onChange={() => toggleSection('practice')}
               className="w-4 h-4 rounded text-amber-700 border-stone-300 focus:ring-amber-500 accent-amber-700 cursor-pointer"
             />
-            <CheckSquare className="w-3.5 h-3.5 text-stone-500" />
             <span>Дасгал</span>
           </label>
-        </div>
-
-        {/* Info tooltip */}
-        <div className="text-[11px] text-stone-500 hidden md:block">
-          Хичээлийн үндсэн агуулга: Онол, бодолттой жишээ, бие даах дасгал
         </div>
       </div>
     </aside>

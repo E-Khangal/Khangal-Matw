@@ -9,21 +9,13 @@ import {
   Plus,
   Trash2,
   Save,
-  RotateCcw,
-  Download,
-  Upload,
   BookOpen,
   Lightbulb,
   PencilLine,
   Award,
   CheckCircle2,
-  Laptop,
-  UserCheck,
   ShieldCheck,
-  Database,
 } from 'lucide-react';
-import { ActiveDevicesTab } from './ActiveDevicesTab';
-import { AccessRequestsTab } from './AccessRequestsTab';
 
 interface AdminEditorModalProps {
   isOpen: boolean;
@@ -32,7 +24,6 @@ interface AdminEditorModalProps {
   onTopicUpdated: (updatedTopic: TopicPackage) => void;
   onRefreshAllTopics: () => void;
   onLogout?: () => void;
-  onOpenQuestionBank?: () => void;
 }
 
 export const AdminEditorModal: React.FC<AdminEditorModalProps> = ({
@@ -42,10 +33,9 @@ export const AdminEditorModal: React.FC<AdminEditorModalProps> = ({
   onTopicUpdated,
   onRefreshAllTopics,
   onLogout,
-  onOpenQuestionBank,
 }) => {
   const [topic, setTopic] = useState<TopicPackage>({ ...activeTopic });
-  const [activeTab, setActiveTab] = useState<'info' | 'theory' | 'examples' | 'practice' | 'tests' | 'visibility' | 'json' | 'devices' | 'requests'>('theory');
+  const [activeTab, setActiveTab] = useState<'info' | 'theory' | 'examples' | 'practice' | 'tests' | 'visibility'>('theory');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   // Sync state when activeTopic changes
@@ -65,49 +55,6 @@ export const AdminEditorModal: React.FC<AdminEditorModalProps> = ({
     onTopicUpdated(topic);
     onRefreshAllTopics();
     showStatus('Амжилттай хадгалагдлаа!');
-  };
-
-  const handleResetDefaults = () => {
-    if (window.confirm('Бүх өөрчлөлтийг цуцалж, анхны үндсэн сургалтын багц руу шилжүүлэх үү?')) {
-      const reset = storageService.resetToDefaults();
-      onRefreshAllTopics();
-      const current = reset.find((t) => t.id === topic.id) || reset[0];
-      setTopic(current);
-      onTopicUpdated(current);
-      showStatus('Үндсэн төлөвт шилжүүллээ.');
-    }
-  };
-
-  const handleExportJson = () => {
-    const jsonStr = storageService.exportAsJSON();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `mathematics_curriculum_backup.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showStatus('JSON файл татагдлаа.');
-  };
-
-  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      const res = storageService.importFromJSON(content);
-      if (res.success) {
-        onRefreshAllTopics();
-        const reloaded = storageService.getTopicById(topic.id) || storageService.getTopics()[0];
-        setTopic(reloaded);
-        onTopicUpdated(reloaded);
-        showStatus(`Амжилттай! ${res.count} сэдэв ачаалагдлаа.`);
-      } else {
-        alert(res.error || 'Файлыг уншихад алдаа гарлаа.');
-      }
-    };
-    reader.readAsText(file);
   };
 
   // Add & remove helpers
@@ -237,17 +184,6 @@ export const AdminEditorModal: React.FC<AdminEditorModalProps> = ({
                 {statusMessage}
               </span>
             )}
-            {onOpenQuestionBank && (
-              <button
-                type="button"
-                onClick={onOpenQuestionBank}
-                className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-200 hover:text-white text-xs font-bold flex items-center space-x-1.5 transition-colors border border-stone-700 cursor-pointer"
-                title="Асуултын сан & захиалгат хуудас нээх"
-              >
-                <Database className="w-3.5 h-3.5 text-amber-400" />
-                <span>Асуултын сан</span>
-              </button>
-            )}
             <button
               type="button"
               onClick={handleSave}
@@ -338,41 +274,6 @@ export const AdminEditorModal: React.FC<AdminEditorModalProps> = ({
             }`}
           >
             <span>Сэдвийн мэдээлэл</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('json')}
-            className={`shrink-0 whitespace-nowrap py-3 px-3.5 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
-              activeTab === 'json'
-                ? 'border-amber-600 text-amber-900 bg-white'
-                : 'border-transparent text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <span>Нөөц / Импорт</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('devices')}
-            className={`shrink-0 whitespace-nowrap py-3 px-3.5 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
-              activeTab === 'devices'
-                ? 'border-amber-600 text-amber-900 bg-white'
-                : 'border-transparent text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <Laptop className="w-3.5 h-3.5" />
-            <span>Төхөөрөмж</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('requests')}
-            className={`shrink-0 whitespace-nowrap py-3 px-3.5 border-b-2 transition-colors flex items-center space-x-1.5 cursor-pointer ${
-              activeTab === 'requests'
-                ? 'border-amber-600 text-amber-900 bg-white'
-                : 'border-transparent text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <UserCheck className="w-3.5 h-3.5 text-amber-600" />
-            <span>Хүсэлтүүд</span>
           </button>
         </div>
 
@@ -843,57 +744,6 @@ export const AdminEditorModal: React.FC<AdminEditorModalProps> = ({
               </div>
             </div>
           )}
-
-          {/* 7. JSON / BACKUP TAB */}
-          {activeTab === 'json' && (
-            <div className="space-y-4 max-w-xl">
-              <div className="p-4 border border-stone-200 rounded-xl bg-stone-50 space-y-3">
-                <h3 className="text-xs font-bold uppercase text-stone-800">
-                  Мэдээллийн нөөц хуулбар ба импорт
-                </h3>
-                <p className="text-xs text-stone-600 leading-relaxed">
-                  Та бэлтгэсэн сургалтын материалуудаа компьютертээ JSON файл болгон татаж авах, эсвэл өөр төхөөрөмжөөс оруулж ирэх боломжтой.
-                </p>
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleExportJson}
-                    className="px-3 py-2 bg-stone-900 hover:bg-black text-white rounded-lg text-xs font-bold flex items-center space-x-1.5 cursor-pointer"
-                  >
-                    <Download className="w-4 h-4 text-amber-400" />
-                    <span>JSON файл татах</span>
-                  </button>
-
-                  <label className="px-3 py-2 bg-white border border-stone-300 hover:bg-stone-100 text-stone-800 rounded-lg text-xs font-bold flex items-center space-x-1.5 cursor-pointer">
-                    <Upload className="w-4 h-4 text-stone-500" />
-                    <span>JSON оруулах</span>
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleImportJson}
-                      className="hidden"
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={handleResetDefaults}
-                    className="px-3 py-2 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold flex items-center space-x-1.5 cursor-pointer"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    <span>Анхны төлөвт шилжүүлэх</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 8. ACTIVE DEVICES */}
-          {activeTab === 'devices' && <ActiveDevicesTab onLogout={onLogout} />}
-
-          {/* 9. ACCESS REQUESTS */}
-          {activeTab === 'requests' && <AccessRequestsTab />}
         </div>
       </div>
     </div>

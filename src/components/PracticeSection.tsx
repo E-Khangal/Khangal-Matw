@@ -42,12 +42,9 @@ export const PracticeSection: React.FC<PracticeSectionProps> = ({
   return (
     <section className="mb-8 print:mb-6" id="section-practice">
       <div className="flex items-center justify-between pb-2 mb-4 border-b-2 border-stone-800 print:border-black">
-        <div className="flex items-center space-x-2">
-          <PencilLine className="w-5 h-5 text-indigo-700 print:text-black no-print" />
-          <h2 className="text-lg md:text-xl font-black tracking-tight text-stone-900 print:text-black uppercase">
-            III. БИЕ ДААХ ДАСГАЛ БОДЛОГО
-          </h2>
-        </div>
+        <h2 className="text-lg md:text-xl font-black tracking-tight text-stone-900 print:text-black uppercase">
+          III. БИЕ ДААХ ДАСГАЛ БОДЛОГО
+        </h2>
         <div className="flex items-center space-x-2 no-print">
           {isEditable && onAddPractice && (
             <button

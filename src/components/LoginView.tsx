@@ -53,6 +53,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setTimeout(() => {
       const deviceId = getOrCreateDeviceId();
       const user: AuthUser = {
+        userId: validation.user!.userId,
         phoneNumber: validation.user!.phoneNumber,
         email: validation.user!.email,
         name: validation.user!.name,

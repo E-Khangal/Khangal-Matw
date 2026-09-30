@@ -1,4 +1,5 @@
 import { AccessRequest, ApprovedAccount, AccessRequestStatus, AuthUser } from '../types';
+import { userPermissionsService } from './userPermissionsService';
 
 const STORAGE_KEY_REQUESTS = 'math_app_access_requests_v1';
 const STORAGE_KEY_APPROVED = 'math_app_approved_accounts_v1';
@@ -33,16 +34,18 @@ export const accessRequestService = {
       const now = Date.now();
       let hasUpdates = false;
 
-      // Check 24-hour expiration
+      // Check 24-hour expiration and ensure userId exists
       const updatedList = list.map((req) => {
-        if (req.status === 'pending' && now > req.expiresAt) {
+        let updated = { ...req };
+        if (!updated.userId) {
           hasUpdates = true;
-          return {
-            ...req,
-            status: 'expired' as AccessRequestStatus,
-          };
+          updated.userId = userPermissionsService.generateUserId(updated.email || updated.phoneNumber || updated.id);
         }
-        return req;
+        if (updated.status === 'pending' && now > updated.expiresAt) {
+          hasUpdates = true;
+          updated.status = 'expired' as AccessRequestStatus;
+        }
+        return updated;
       });
 
       if (hasUpdates) {
@@ -124,6 +127,7 @@ export const accessRequestService = {
     const now = Date.now();
     const newRequest: AccessRequest = {
       id: 'req-' + now + '-' + Math.random().toString(36).substring(2, 7),
+      userId: userPermissionsService.generateUserId(cleanEmail),
       fullName: cleanName,
       email: cleanEmail,
       phoneNumber: data.phoneNumber?.trim() || '',
@@ -241,7 +245,9 @@ export const accessRequestService = {
     // Save/update in approved accounts
     const accounts = this.getApprovedAccounts();
     const existingIdx = accounts.findIndex((a) => a.email.toLowerCase() === userEmail.toLowerCase() || (a.phoneNumber && a.phoneNumber === userEmail));
+    const accountUserId = target.userId || userPermissionsService.generateUserId(userEmail);
     const newAccount: ApprovedAccount = {
+      userId: accountUserId,
       email: userEmail,
       username: userEmail,
       phoneNumber: target.phoneNumber || '',
@@ -294,7 +300,20 @@ export const accessRequestService = {
   getApprovedAccounts(): ApprovedAccount[] {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_APPROVED);
-      return raw ? JSON.parse(raw) : [];
+      if (!raw) return [];
+      const accounts: ApprovedAccount[] = JSON.parse(raw);
+      let updated = false;
+      const normalized = accounts.map((acc) => {
+        if (!acc.userId) {
+          updated = true;
+          acc.userId = userPermissionsService.generateUserId(acc.email || acc.phoneNumber);
+        }
+        return acc;
+      });
+      if (updated) {
+        this.saveApprovedAccounts(normalized);
+      }
+      return normalized;
     } catch {
       return [];
     }
@@ -345,7 +364,7 @@ export const accessRequestService = {
   validateLogin(
     identifier: string,
     pass: string
-  ): { valid: boolean; user?: { phoneNumber?: string; email?: string; username?: string; name: string; role: 'admin' | 'teacher' }; error?: string } {
+  ): { valid: boolean; user?: { userId?: string; phoneNumber?: string; email?: string; username?: string; name: string; role: 'admin' | 'teacher' }; error?: string } {
     const cleanId = identifier.trim().toLowerCase();
     const cleanPass = pass.trim();
 
@@ -365,6 +384,7 @@ export const accessRequestService = {
       return {
         valid: true,
         user: {
+          userId: 'ADMIN-01',
           phoneNumber: adminProfile.phoneNumber,
           email: adminProfile.email,
           username: cleanId,
@@ -385,6 +405,7 @@ export const accessRequestService = {
         return {
           valid: true,
           user: {
+            userId: matched.userId || userPermissionsService.generateUserId(matched.email),
             email: matched.email,
             username: matched.username || matched.email,
             phoneNumber: matched.phoneNumber,

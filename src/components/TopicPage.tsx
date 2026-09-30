@@ -6,14 +6,12 @@ import { PracticeSection } from './PracticeSection';
 import { PrintControlPanel } from './PrintControlPanel';
 import { ItemEditorModal, ItemEditorType } from './ItemEditorModal';
 import { visibilityService, TopicSectionVisibility, TopicAccessMode } from '../services/visibilityService';
+import { userPermissionsService } from '../services/userPermissionsService';
 import { accessRequestService } from '../services/accessRequestService';
 import { AuthUser } from '../types';
 import {
   Printer,
   ChevronRight,
-  Edit3,
-  CheckSquare,
-  Square,
   Lock,
   BookOpen,
   Pencil,
@@ -90,8 +88,10 @@ export const TopicPage: React.FC<TopicPageProps> = ({
 
     handleUpdate();
     window.addEventListener('visibility-settings-updated', handleUpdate);
+    window.addEventListener('user-permissions-updated', handleUpdate);
     return () => {
       window.removeEventListener('visibility-settings-updated', handleUpdate);
+      window.removeEventListener('user-permissions-updated', handleUpdate);
     };
   }, [topic.id]);
 
@@ -112,39 +112,20 @@ export const TopicPage: React.FC<TopicPageProps> = ({
     });
   };
 
+  const isTheoryAllowed = isAdmin || (userVisibility.theory && userPermissionsService.isSectionAllowed(currentUser?.userId, 'theory', isAdmin));
+  const isExamplesAllowed = isAdmin || (userVisibility.examples && userPermissionsService.isSectionAllowed(currentUser?.userId, 'examples', isAdmin));
+  const isPracticeAllowed = isAdmin || (userVisibility.practice && userPermissionsService.isSectionAllowed(currentUser?.userId, 'practice', isAdmin));
+  const isExamsAllowed = isAdmin || userPermissionsService.isSectionAllowed(currentUser?.userId, 'exams', isAdmin);
+
   const anyAdminSectionSelected =
     selection.theory ||
     selection.examples ||
     selection.practice;
 
   const anyUserSectionVisible =
-    userVisibility.theory ||
-    userVisibility.examples ||
-    userVisibility.practice;
-
-  const selectAll = () => {
-    setSelection({
-      theory: true,
-      examples: true,
-      practice: true,
-      test1: false,
-      test2: false,
-      test3: false,
-      answers: false,
-    });
-  };
-
-  const clearAll = () => {
-    setSelection({
-      theory: false,
-      examples: false,
-      practice: false,
-      test1: false,
-      test2: false,
-      test3: false,
-      answers: false,
-    });
-  };
+    isTheoryAllowed ||
+    isExamplesAllowed ||
+    isPracticeAllowed;
 
   // Helper to commit topic changes to parent / storage
   const commitTopicChange = (updated: TopicPackage) => {
@@ -304,7 +285,7 @@ export const TopicPage: React.FC<TopicPageProps> = ({
     <div className="w-full">
       {/* Screen Breadcrumb & Title Bar */}
       <div className="no-print mb-4 pb-3 border-b border-stone-200">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500 mb-1.5">
+        <div className="text-xs text-stone-500 mb-2">
           <nav className="flex items-center space-x-1.5 font-medium">
             <span className="font-bold text-stone-800">{topic.grade}-р анги</span>
             <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
@@ -312,76 +293,24 @@ export const TopicPage: React.FC<TopicPageProps> = ({
             <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
             <span className="text-amber-800 font-bold">{topic.title}</span>
           </nav>
-
-          {/* Quick actions bar */}
-          <div className="flex items-center flex-wrap gap-2">
-            {isAdmin && (
-              <>
-                {/* Live In-Page Content Editing Toggle */}
-                <button
-                  type="button"
-                  onClick={() => setIsEditMode(!isEditMode)}
-                  className={`px-2.5 py-1 text-xs font-bold rounded-md flex items-center space-x-1.5 transition-all cursor-pointer shadow-2xs ${
-                    isEditMode
-                      ? 'bg-amber-500 text-stone-950 border border-amber-600 ring-2 ring-amber-400/40'
-                      : 'bg-white hover:bg-stone-50 text-stone-700 border border-stone-300'
-                  }`}
-                  title="Хуудсан дээрх онол, жишээ, дасгалыг шууд засах горим"
-                >
-                  <Pencil className="w-3.5 h-3.5 text-stone-900" />
-                  <span>{isEditMode ? 'Засах горим: Идэвхтэй' : 'Шууд засах горим'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={selectAll}
-                  className="px-2.5 py-1 text-xs font-semibold text-stone-700 hover:text-stone-900 bg-white border border-stone-300 rounded-md hover:bg-stone-50 flex items-center space-x-1.5 transition-colors cursor-pointer"
-                >
-                  <CheckSquare className="w-3.5 h-3.5 text-stone-500" />
-                  <span>Бүгдийг сонгох</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={clearAll}
-                  className="px-2.5 py-1 text-xs font-semibold text-stone-700 hover:text-stone-900 bg-white border border-stone-300 rounded-md hover:bg-stone-50 flex items-center space-x-1.5 transition-colors cursor-pointer"
-                >
-                  <Square className="w-3.5 h-3.5 text-stone-500" />
-                  <span>Сонголтыг арилгах</span>
-                </button>
-
-                {onOpenAdmin && (
-                  <button
-                    type="button"
-                    onClick={onOpenAdmin}
-                    className="px-2.5 py-1 text-xs font-semibold text-stone-700 hover:text-stone-900 bg-white border border-stone-300 rounded-md hover:bg-stone-50 flex items-center space-x-1.5 transition-colors cursor-pointer"
-                  >
-                    <Edit3 className="w-3.5 h-3.5 text-stone-500" />
-                    <span>Сэдэв бүрэн удирдах</span>
-                  </button>
-                )}
-              </>
-            )}
-
-            {/* Jump to Exams Center for this topic */}
-            {onOpenExamsHub && (
-              <button
-                type="button"
-                onClick={() => onOpenExamsHub(topic.id)}
-                className="px-2.5 py-1 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-md flex items-center space-x-1.5 transition-colors cursor-pointer"
-                title="Энэ сэдвийн 3 түвшний шалгалтын төв рүү шилжих"
-              >
-                <Award className="w-3.5 h-3.5 text-amber-700" />
-                <span>3 шалгалт өгөх</span>
-              </button>
-            )}
-          </div>
         </div>
 
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between gap-4">
           <h1 className="text-2xl md:text-3xl font-black text-stone-950 tracking-tight">
             {topic.title}
           </h1>
+
+          {isAdmin && onOpenAdmin && (
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold text-stone-700 hover:text-stone-950 bg-stone-100 hover:bg-stone-200/80 border border-stone-200/80 rounded-lg transition-all cursor-pointer shadow-2xs shrink-0"
+              title="Сэдвийн агуулга, онол, дасгал, шалгалтыг засах"
+            >
+              <Pencil className="w-3.5 h-3.5 text-stone-500" />
+              <span>Сэдэв засах</span>
+            </button>
+          )}
         </div>
 
         {topic.description && (
@@ -496,7 +425,7 @@ export const TopicPage: React.FC<TopicPageProps> = ({
           )}
 
           {/* 1. Theory */}
-          {((isAdmin && selection.theory) || (!isAdmin && userVisibility.theory)) && (
+          {((isAdmin && selection.theory) || (!isAdmin && isTheoryAllowed)) && (
             <TheorySection
               theory={topic.theory}
               prerequisiteNotice={topic.prerequisiteNotice}
@@ -508,7 +437,7 @@ export const TopicPage: React.FC<TopicPageProps> = ({
           )}
 
           {/* 2. Worked Examples */}
-          {((isAdmin && selection.examples) || (!isAdmin && userVisibility.examples)) && (
+          {((isAdmin && selection.examples) || (!isAdmin && isExamplesAllowed)) && (
             <WorkedExamplesSection
               examples={topic.examples}
               isEditable={isAdmin && isEditMode}
@@ -519,7 +448,7 @@ export const TopicPage: React.FC<TopicPageProps> = ({
           )}
 
           {/* 3. Practice Exercises */}
-          {((isAdmin && selection.practice) || (!isAdmin && userVisibility.practice)) && (
+          {((isAdmin && selection.practice) || (!isAdmin && isPracticeAllowed)) && (
             <PracticeSection
               practice={topic.practice}
               includeWorkSpace={isAdmin ? options.includeWorkSpace : false}
@@ -532,7 +461,7 @@ export const TopicPage: React.FC<TopicPageProps> = ({
           )}
 
           {/* Link to 3-tier Exams Hub for this topic (Neat banner) */}
-          {onOpenExamsHub && (
+          {onOpenExamsHub && isExamsAllowed && (
             <div className="mt-10 p-5 bg-gradient-to-r from-stone-900 via-stone-850 to-stone-900 text-white rounded-2xl border border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm no-print">
               <div className="space-y-1">
                 <div className="flex items-center space-x-2 text-amber-400 text-xs font-bold uppercase tracking-wider">

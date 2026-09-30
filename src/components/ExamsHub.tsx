@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { GradeNumber, TopicPackage, TestPackage } from '../types';
+import { GradeNumber, TopicPackage, TestPackage, TestQuestion } from '../types';
 import { GRADE_TOPICS_CATALOG } from '../data/initialData';
 import { MathRenderer } from './MathRenderer';
 import {
@@ -311,7 +311,7 @@ export const ExamsHub: React.FC<ExamsHubProps> = ({
   return (
     <div className="w-full animate-in fade-in duration-150">
       {/* Styled Table: One row per topic, clean level selector, centered action buttons, fits without cut off */}
-      <div className="bg-white rounded-xl shadow-xs border border-stone-200 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-stone-200/90 overflow-hidden ring-1 ring-stone-900/5">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -392,14 +392,6 @@ export const ExamsHub: React.FC<ExamsHubProps> = ({
                         >
                           {topic.title}
                         </button>
-                        <div className="text-[11px] text-stone-500 mt-0.5 leading-tight">
-                          {testPackage.questions.length} бодлого • {totalPoints} оноо
-                          {hasAttempt && (
-                            <span className="ml-1.5 font-bold text-emerald-700">
-                              • Авсан: {attempt.score}/{totalPoints}
-                            </span>
-                          )}
-                        </div>
                       </td>
 
                       {/* Түвшин: 3-tier Interactive Selector */}
@@ -683,12 +675,12 @@ function TakeExamModal({
   };
 
   const handleSubmit = () => {
-    // Auto-grader checking answers
+    // Auto-grader checking test choices
     let earned = 0;
     exam.testPackage.questions.forEach((q) => {
-      const userAns = (answers[q.id] || '').trim().toLowerCase();
-      const rightAns = (q.answer || '').trim().toLowerCase();
-      if (userAns && (userAns === rightAns || rightAns.includes(userAns) || userAns.includes(rightAns))) {
+      const opts = getQuestionOptions(q);
+      const userAns = answers[q.id] || '';
+      if (isOptionCorrect(userAns, q, opts)) {
         earned += q.points || Math.round(exam.totalPoints / exam.testPackage.questions.length);
       }
     });
@@ -729,29 +721,48 @@ function TakeExamModal({
             <div key={q.id || idx} className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-xs text-stone-900">
-                  Бодлого {idx + 1}
+                  Тест {idx + 1}
                 </span>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-white border border-stone-300 text-amber-900">
                   {q.points} оноо
                 </span>
               </div>
 
-              <div className="text-xs md:text-sm text-stone-900 font-medium leading-relaxed">
+              <div className="text-xs md:text-sm text-stone-900 font-semibold leading-relaxed">
                 <MathRenderer content={q.question} />
               </div>
 
-              {/* User Answer Input */}
-              <div className="pt-2">
-                <label className="text-[11px] font-bold text-stone-600 block mb-1">
-                  Таны хариу:
-                </label>
-                <input
-                  type="text"
-                  placeholder="Хариугаа бичнэ үү..."
-                  value={answers[q.id] || ''}
-                  onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
-                  className="w-full text-xs md:text-sm p-2.5 bg-white border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 outline-none font-bold text-stone-900"
-                />
+              {/* Multiple Choice Test Options (A, B, C, D) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {getQuestionOptions(q).map((opt) => {
+                  const isSelected = (answers[q.id] || '').trim().toUpperCase() === opt.letter;
+
+                  return (
+                    <button
+                      key={opt.letter}
+                      type="button"
+                      onClick={() => setAnswers({ ...answers, [q.id]: opt.letter })}
+                      className={`p-3 rounded-xl border text-left flex items-start space-x-2.5 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-400 text-stone-950 font-bold shadow-xs'
+                          : 'bg-white border-stone-200 hover:border-stone-300 hover:bg-stone-50/80 text-stone-800'
+                      }`}
+                    >
+                      <span
+                        className={`w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center shrink-0 transition-colors ${
+                          isSelected
+                            ? 'bg-amber-500 text-stone-950 shadow-2xs'
+                            : 'bg-stone-100 text-stone-700'
+                        }`}
+                      >
+                        {opt.letter}
+                      </span>
+                      <div className="text-xs md:text-sm font-medium pt-0.5 leading-relaxed">
+                        <MathRenderer content={opt.text} />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -814,27 +825,60 @@ function ViewSolutionModal({
             <div key={q.id || idx} className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-3">
               <div className="flex items-center justify-between pb-1.5 border-b border-stone-200">
                 <span className="font-extrabold text-xs text-stone-900">
-                  Бодлого {idx + 1}
+                  Тест {idx + 1}
                 </span>
                 <span className="text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
                   {q.points} оноо
                 </span>
               </div>
 
-              <div className="text-xs md:text-sm text-stone-900 font-medium">
+              <div className="text-xs md:text-sm text-stone-900 font-semibold">
                 <MathRenderer content={q.question} />
               </div>
 
+              {/* Test Options (A, B, C, D) with Correct Answer Highlighted */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {getQuestionOptions(q).map((opt) => {
+                  const isCorrect = isOptionCorrect(opt.letter, q, getQuestionOptions(q));
+
+                  return (
+                    <div
+                      key={opt.letter}
+                      className={`p-2.5 rounded-xl border text-left flex items-start space-x-2.5 ${
+                        isCorrect
+                          ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-300 text-emerald-950 font-bold'
+                          : 'bg-white border-stone-200 text-stone-700 opacity-70'
+                      }`}
+                    >
+                      <span
+                        className={`w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center shrink-0 ${
+                          isCorrect
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-stone-100 text-stone-600'
+                        }`}
+                      >
+                        {opt.letter}
+                      </span>
+                      <div className="text-xs md:text-sm font-medium pt-0.5 flex-1">
+                        <MathRenderer content={opt.text} />
+                        {isCorrect && (
+                          <span className="ml-2 text-[10px] text-emerald-700 font-bold uppercase tracking-wider">
+                            ✓ Зөв хариу
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               {/* Solution Box */}
-              <div className="p-3.5 bg-white border border-rose-200 rounded-lg space-y-2 text-xs md:text-sm">
+              <div className="p-3.5 bg-white border border-rose-200 rounded-lg space-y-1.5 text-xs md:text-sm">
                 <div className="font-bold text-rose-900 text-xs uppercase tracking-wider">
-                  Зөв хариу ба бодолт:
-                </div>
-                <div className="text-emerald-800 font-mono font-bold">
-                  Хариу: <MathRenderer content={q.answer} className="inline font-bold" />
+                  Алхамчилсан тайлбар бодолт:
                 </div>
                 {q.solution && (
-                  <div className="text-stone-700 text-xs pt-1.5 border-t border-dashed border-stone-200 leading-relaxed">
+                  <div className="text-stone-700 text-xs pt-1 border-t border-dashed border-stone-200 leading-relaxed">
                     <MathRenderer content={q.solution} />
                   </div>
                 )}
@@ -968,14 +1012,14 @@ function ViewErrorCheckModal({
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
           {exam.testPackage.questions.map((q, idx) => {
+            const opts = getQuestionOptions(q);
             const userAns = (userAnswers[q.id] || '').trim();
-            const rightAns = (q.answer || '').trim();
-            const isCorrect = userAns && (userAns.toLowerCase() === rightAns.toLowerCase() || rightAns.toLowerCase().includes(userAns.toLowerCase()));
+            const isCorrect = isOptionCorrect(userAns, q, opts);
 
             return (
               <div
                 key={q.id || idx}
-                className={`p-4 rounded-xl border space-y-2.5 ${
+                className={`p-4 rounded-xl border space-y-3 ${
                   isCorrect
                     ? 'bg-emerald-50/40 border-emerald-200'
                     : 'bg-rose-50/40 border-rose-200'
@@ -983,7 +1027,7 @@ function ViewErrorCheckModal({
               >
                 <div className="flex items-center justify-between">
                   <span className="font-extrabold text-xs text-stone-900">
-                    Бодлого {idx + 1}
+                    Тест {idx + 1}
                   </span>
                   <span
                     className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center space-x-1 ${
@@ -993,29 +1037,65 @@ function ViewErrorCheckModal({
                     }`}
                   >
                     {isCorrect ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                    <span>{isCorrect ? 'Зөв бодсон' : 'Алдаатай'}</span>
+                    <span>{isCorrect ? 'Зөв хариулсан' : 'Алдаатай'}</span>
                   </span>
                 </div>
 
-                <div className="text-xs md:text-sm text-stone-900">
+                <div className="text-xs md:text-sm text-stone-900 font-semibold">
                   <MathRenderer content={q.question} />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
-                  <div className="p-2 bg-white rounded border border-stone-200">
-                    <span className="text-stone-500 font-semibold block text-[10px]">Таны хариу:</span>
-                    <span className="font-bold font-mono text-stone-900">
-                      {userAns || <span className="text-stone-400 italic">Хариулаагүй</span>}
-                    </span>
-                  </div>
+                {/* Display 4 Options with user choice & correct choice highlighted */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {opts.map((opt) => {
+                    const isUserChoice = userAns.toUpperCase() === opt.letter;
+                    const isRightOption = isOptionCorrect(opt.letter, q, opts);
 
-                  <div className="p-2 bg-white rounded border border-stone-200">
-                    <span className="text-stone-500 font-semibold block text-[10px]">Зөв хариу:</span>
-                    <span className="font-bold font-mono text-emerald-800">
-                      <MathRenderer content={rightAns} className="inline" />
-                    </span>
-                  </div>
+                    let boxStyle = 'bg-white border-stone-200 text-stone-600';
+                    let badge = null;
+
+                    if (isRightOption) {
+                      boxStyle = 'bg-emerald-50 border-emerald-500 font-bold text-emerald-950 ring-1 ring-emerald-400';
+                      badge = <span className="text-[10px] text-emerald-700 font-bold ml-1.5">✓ Зөв хариу</span>;
+                    }
+                    if (isUserChoice && !isRightOption) {
+                      boxStyle = 'bg-rose-50 border-rose-500 font-bold text-rose-950 ring-1 ring-rose-400';
+                      badge = <span className="text-[10px] text-rose-700 font-bold ml-1.5">✗ Таны сонгосон</span>;
+                    } else if (isUserChoice && isRightOption) {
+                      badge = <span className="text-[10px] text-emerald-700 font-bold ml-1.5">✓ Таны зөв сонголт</span>;
+                    }
+
+                    return (
+                      <div
+                        key={opt.letter}
+                        className={`p-2.5 rounded-xl border text-left flex items-start space-x-2.5 ${boxStyle}`}
+                      >
+                        <span
+                          className={`w-6 h-6 rounded-lg text-xs font-black flex items-center justify-center shrink-0 ${
+                            isRightOption
+                              ? 'bg-emerald-600 text-white'
+                              : isUserChoice
+                              ? 'bg-rose-600 text-white'
+                              : 'bg-stone-100 text-stone-600'
+                          }`}
+                        >
+                          {opt.letter}
+                        </span>
+                        <div className="text-xs md:text-sm pt-0.5 flex-1">
+                          <MathRenderer content={opt.text} />
+                          {badge}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+
+                {q.solution && (
+                  <div className="p-3 bg-white/80 border border-stone-200 rounded-lg text-xs text-stone-700 leading-relaxed">
+                    <span className="font-bold text-stone-900 block mb-0.5">Бодолт ба тайлбар:</span>
+                    <MathRenderer content={q.solution} />
+                  </div>
+                )}
               </div>
             );
           })}

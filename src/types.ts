@@ -110,6 +110,7 @@ export interface LoggedInDevice {
 }
 
 export interface AuthUser {
+  userId?: string;
   phoneNumber?: string;
   email?: string;
   username?: string;
@@ -123,6 +124,7 @@ export type AccessRequestStatus = 'pending' | 'approved' | 'rejected' | 'expired
 
 export interface AccessRequest {
   id: string;
+  userId?: string;
   fullName: string;
   email: string;
   phoneNumber?: string;
@@ -146,6 +148,7 @@ export interface AccessRequest {
 }
 
 export interface ApprovedAccount {
+  userId?: string;
   email: string;
   username?: string;
   phoneNumber?: string;
@@ -154,4 +157,29 @@ export interface ApprovedAccount {
   school?: string;
   approvedAt: number;
   active: boolean;
+}
+
+export interface UserPermissions {
+  userId: string;
+  allowedGrades: GradeNumber[];
+  sections: {
+    theory: boolean;
+    examples: boolean;
+    practice: boolean;
+    exams: boolean;
+  };
+  accessMode: 'visible' | 'locked';
+  isBlocked?: boolean;
+  updatedAt?: number;
+}
+
+export interface DefaultPermissionsConfig {
+  allowedGrades: GradeNumber[];
+  sections: {
+    theory: boolean;
+    examples: boolean;
+    practice: boolean;
+    exams: boolean;
+  };
+  defaultAccessMode: 'visible' | 'locked';
 }

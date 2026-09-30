@@ -3,9 +3,7 @@ import { GradeNumber, TopicPackage } from './types';
 import { storageService } from './services/storageService';
 import { GRADE_TOPICS_CATALOG } from './data/initialData';
 import { Sidebar } from './components/Sidebar';
-import { SearchBar } from './components/SearchBar';
 import { TopicPage } from './components/TopicPage';
-import { QuestionBankModal } from './components/QuestionBankModal';
 import { AdminEditorModal } from './components/AdminEditorModal';
 import { AccessRequestsModal } from './components/AccessRequestsModal';
 import { LoginView } from './components/LoginView';
@@ -18,7 +16,6 @@ import { accessRequestService } from './services/accessRequestService';
 import {
   Menu,
   Printer,
-  Database,
   Settings,
   Sparkles,
   ChevronDown,
@@ -77,7 +74,6 @@ export default function App() {
       window.removeEventListener('storage', refreshCount);
     };
   }, []);
-  const [questionBankOpen, setQuestionBankOpen] = useState(false);
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
   const printMenuRef = React.useRef<HTMLDivElement>(null);
 
@@ -261,11 +257,6 @@ export default function App() {
     return topics[0] || ({} as TopicPackage);
   }, [topics, selectedTopicId, selectedGrade]);
 
-  const handleSearchResultSelect = (grade: GradeNumber, topicId: string) => {
-    setSelectedGrade(grade);
-    setSelectedTopicId(topicId);
-  };
-
   if (!currentUser) {
     return (
       <>
@@ -301,59 +292,40 @@ export default function App() {
             </div>
           </div>
 
-          {/* Search bar (Зөвхөн админд харагдана) */}
-          {currentUser?.role === 'admin' && !previewAsUser ? (
-            <div className="flex-1 max-w-sm mx-2">
-              <SearchBar onSelectResult={handleSearchResultSelect} />
-            </div>
-          ) : (
-            <div className="flex-1" />
-          )}
+          <div className="flex-1" />
 
           {/* Action buttons */}
           <div className="flex items-center space-x-2">
-            {/* Admin vs User View Switcher */}
+            {/* Admin vs User View Switcher (Icons only) */}
             {currentUser?.role === 'admin' && (
               <div className="flex items-center bg-stone-100 p-0.5 rounded-lg border border-stone-200">
                 <button
                   type="button"
                   onClick={() => setPreviewAsUser(false)}
-                  className={`px-2 py-1 rounded-md text-xs font-bold flex items-center space-x-1 transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-md transition-all cursor-pointer ${
                     !previewAsUser
                       ? 'bg-stone-900 text-amber-400 shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900'
+                      : 'text-stone-500 hover:text-stone-900'
                   }`}
-                  title="Админ удирдлагын бүрэн горим"
+                  title="Админ горим"
+                  aria-label="Админ горим"
                 >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Админ</span>
+                  <Shield className="w-4 h-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setPreviewAsUser(true)}
-                  className={`px-2 py-1 rounded-md text-xs font-bold flex items-center space-x-1 transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-md transition-all cursor-pointer ${
                     previewAsUser
                       ? 'bg-amber-500 text-stone-950 shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900'
+                      : 'text-stone-500 hover:text-stone-900'
                   }`}
-                  title="Энгийн хэрэглэгчдэд яг одоо хэрхэн харагдаж буйг шалгах"
+                  title="Хэрэглэгчээр харах"
+                  aria-label="Хэрэглэгчээр харах"
                 >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Хэрэглэгчээр харах</span>
+                  <Eye className="w-4 h-4" />
                 </button>
               </div>
-            )}
-
-            {/* Admin only: Удирдлага (Manage Content) */}
-            {currentUser?.role === 'admin' && !previewAsUser && (
-              <button
-                type="button"
-                onClick={() => setAdminModalOpen(true)}
-                className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-stone-700 hover:bg-stone-100 border border-stone-200 hidden sm:flex items-center space-x-1.5 transition-colors cursor-pointer"
-              >
-                <Settings className="w-3.5 h-3.5 text-stone-500" />
-                <span>Удирдлага</span>
-              </button>
             )}
 
             {/* Admin only: Unified Print & PDF Menu */}
@@ -427,7 +399,6 @@ export default function App() {
             setActiveView('topics');
           }}
           onOpenAdmin={() => setAdminModalOpen(true)}
-          onOpenQuestionBank={() => setQuestionBankOpen(true)}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
           currentUser={currentUser}
@@ -477,13 +448,6 @@ export default function App() {
         </main>
       </div>
 
-      {/* Question Bank Modal */}
-      <QuestionBankModal
-        isOpen={questionBankOpen}
-        onClose={() => setQuestionBankOpen(false)}
-        topics={topics}
-      />
-
       {/* Admin Material Editor Modal */}
       <AdminEditorModal
         isOpen={adminModalOpen}
@@ -493,10 +457,6 @@ export default function App() {
           setTopics((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
         }}
         onRefreshAllTopics={refreshTopics}
-        onOpenQuestionBank={() => {
-          setAdminModalOpen(false);
-          setQuestionBankOpen(true);
-        }}
         onLogout={() => {
           clearStoredAuth();
           setCurrentUser(null);
@@ -519,7 +479,7 @@ export default function App() {
         onLogout={handleLogout}
         screenProtectionEnabled={screenProtectionEnabled}
         onToggleScreenProtection={handleToggleScreenProtection}
-        isAdmin={currentUser?.role === 'admin' && !previewAsUser}
+        isAdmin={currentUser?.role === 'admin'}
       />
     </div>
   );

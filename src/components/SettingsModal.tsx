@@ -18,10 +18,12 @@ import {
   Sparkles,
   Save,
   KeyRound,
+  Smartphone,
 } from 'lucide-react';
 import { AuthUser } from '../types';
 import { accessRequestService } from '../services/accessRequestService';
 import { saveStoredAuth } from '../utils/deviceManager';
+import { ActiveDevicesTab } from './ActiveDevicesTab';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -34,7 +36,7 @@ interface SettingsModalProps {
   isAdmin?: boolean;
 }
 
-type SettingsView = 'main' | 'profile' | 'security' | 'system';
+type SettingsView = 'main' | 'profile' | 'security' | 'system' | 'devices';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
@@ -136,7 +138,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 modal-backdrop bg-stone-950/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
-        className="bg-stone-100 w-full max-w-md max-h-[92vh] rounded-3xl shadow-2xl border border-stone-200 flex flex-col overflow-hidden text-stone-900 animate-in zoom-in-95 duration-200"
+        className={`bg-stone-100 w-full ${currentView === 'devices' ? 'max-w-2xl' : 'max-w-md'} max-h-[92vh] rounded-3xl shadow-2xl border border-stone-200 flex flex-col overflow-hidden text-stone-900 animate-in zoom-in-95 duration-200 transition-all`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
@@ -181,6 +183,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="text-xs font-bold text-stone-800 truncate px-2">
               {currentView === 'profile' && 'Хувийн мэдээлэл'}
               {currentView === 'security' && 'Аюулгүй байдал & Нууц үг'}
+              {currentView === 'devices' && 'Нэвтэрсэн төхөөрөмжүүд'}
               {currentView === 'system' && 'Системийн тохиргоо'}
             </div>
 
@@ -272,7 +275,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-stone-700 shrink-0 ml-2" />
                   </button>
 
-                  {/* Row 3: Системийн тохиргоо (Зөвхөн админд харагдана) */}
+                  {/* Row 3: Нэвтэрсэн төхөөрөмжүүд */}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('devices')}
+                    className="w-full p-3.5 flex items-center justify-between hover:bg-stone-50 active:bg-stone-100 transition-colors text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                        <Smartphone className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-stone-900 group-hover:text-purple-700 transition-colors">
+                          Нэвтэрсэн төхөөрөмжүүд
+                        </div>
+                        <div className="text-[11px] text-stone-500 truncate">
+                          Идэвхтэй сесс болон төхөөрөмжийн удирдлага
+                        </div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-stone-700 shrink-0 ml-2" />
+                  </button>
+
+                  {/* Row 4: Системийн тохиргоо (Зөвхөн админд харагдана) */}
                   {isUserAdmin && (
                     <button
                       type="button"
@@ -640,6 +665,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* VIEW 5: DEVICES (Нэвтэрсэн төхөөрөмжүүд) */}
+          {currentView === 'devices' && (
+            <div className="bg-white rounded-2xl border border-stone-200/90 p-4 shadow-xs">
+              <ActiveDevicesTab onLogoutCurrent={onLogout} />
             </div>
           )}
         </div>
